@@ -15,14 +15,14 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.rork.foodie-delivery-app-gy7kmal"
+      "bundleIdentifier": "com.younessz.foodapp"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.foodie-delivery-app-gy7kmal"
+      "package": "com.younessz.foodapp"
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -31,7 +31,7 @@
       [
         "expo-router",
         {
-          "origin": "https://rork.com/"
+          "origin": "https://zbair.net/"
         }
       ]
     ],
@@ -40,7 +40,7 @@
     },
     "extra": {
       "router": {
-        "origin": "https://rork.com/"
+        "origin": "https://zbair.net/"
       },
       "eas": {
         "projectId": "8faaeb02-4b73-4046-8418-33c26ce3a1c1"
