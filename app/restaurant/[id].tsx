@@ -1,9 +1,19 @@
-import { FlatList, StyleSheet, Text, TouchableOpacity, View, Image, ScrollView, ActivityIndicator } from "react-native";
+import {
+  FlatList,
+  Alert,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  Image,
+  ScrollView,
+  ActivityIndicator,
+  Platform,
+} from "react-native";
 import React, { useState } from "react";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { Platform } from "react-native";
 
 import MenuItem from "@/components/MenuItem";
 import AuthGuard from "@/components/AuthGuard";
@@ -15,14 +25,16 @@ import { RestaurantsProvider, useRestaurants } from "@/hooks/restaurants-store";
 function RestaurantContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { addToCart } = useCart();
+  const { addToCart, cart } = useCart();
   const { restaurants, isLoading } = useRestaurants();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const restaurant = restaurants.find((r) => r.id === id);
 
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+//console.log(cart)
   const handleAddToCart = (item: MenuItemType) => {
-    if (Platform.OS !== 'web') {
+    if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     if (restaurant) {
@@ -32,7 +44,13 @@ function RestaurantContent() {
         restaurantId: restaurant.id,
         restaurantName: restaurant.name,
       });
+      
     }
+    
+  };
+
+  const handleGoToCart = () => {
+    router.push("/cart");
   };
 
   if (isLoading) {
@@ -59,7 +77,6 @@ function RestaurantContent() {
     );
   }
 
-  // Get unique categories from menu items
   const categories = Array.from(
     new Set(restaurant.menu.map((item) => item.category))
   );
@@ -102,7 +119,7 @@ function RestaurantContent() {
               <Text style={styles.time}>{restaurant.deliveryTime}</Text>
             </View>
             <Text style={styles.deliveryFee}>
-              Delivery: ${restaurant.deliveryFee.toFixed(2)}
+              Delivery:  {restaurant.deliveryFee.toFixed(2)}
             </Text>
           </View>
         </View>
@@ -138,7 +155,7 @@ function RestaurantContent() {
                   selectedCategory === category && styles.selectedCategoryButton,
                 ]}
                 onPress={() => setSelectedCategory(category)}
-                testID={`category-${category}`}
+                testID={`category- {category}`}
               >
                 <Text
                   style={[
@@ -162,6 +179,18 @@ function RestaurantContent() {
           contentContainerStyle={styles.menuList}
           showsVerticalScrollIndicator={false}
         />
+
+        {totalItems > 0 && (
+          <TouchableOpacity
+            style={styles.floatingCartButton}
+            onPress={handleGoToCart}
+          >
+            <Feather name="shopping-bag" size={24} color="#fff" />
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{totalItems}</Text>
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
     </>
   );
@@ -258,6 +287,7 @@ const styles = StyleSheet.create({
   },
   menuList: {
     padding: 16,
+    paddingBottom: 80,
   },
   notFoundContainer: {
     flex: 1,
@@ -291,5 +321,34 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: Colors.light.gray,
+  },
+  floatingCartButton: {
+    position: "absolute",
+    bottom: 24,
+    left: 24,
+    backgroundColor: Colors.light.primary,
+    padding: 16,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  cartBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: "red",
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  cartBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
   },
 });
