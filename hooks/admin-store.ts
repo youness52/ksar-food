@@ -181,6 +181,7 @@ export const useAdminOrders = () => {
             restaurantName: order.restaurant_name,
           })),
           restaurantId: order.restaurant_id,
+          userId: order.user_id,
           restaurantName: order.restaurant_name,
           status: order.status,
           total: order.total,

@@ -11,7 +11,6 @@ export const [CartProvider, useCart] = createContextHook(() => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const queryClient = useQueryClient();
 
-  // Only proceed if user is authenticated
   const userId = user?.id;
 
   // Load cart from Supabase
@@ -119,12 +118,11 @@ export const [CartProvider, useCart] = createContextHook(() => {
     enabled: !!userId,
   });
 
-  // Add item to cart mutation
+  // Add to cart mutation
   const addToCartMutation = useMutation({
     mutationFn: async (item: CartItem) => {
       if (!userId) throw new Error("User not authenticated");
 
-      // Check if item already exists in cart
       const { data: existingItem } = await supabase
         .from("cart_items")
         .select("*")
@@ -133,7 +131,6 @@ export const [CartProvider, useCart] = createContextHook(() => {
         .single();
 
       if (existingItem) {
-        // Update quantity
         const { error } = await supabase
           .from("cart_items")
           .update({ 
@@ -144,7 +141,6 @@ export const [CartProvider, useCart] = createContextHook(() => {
 
         if (error) throw error;
       } else {
-        // Insert new item
         const { error } = await supabase
           .from("cart_items")
           .insert({
@@ -163,7 +159,7 @@ export const [CartProvider, useCart] = createContextHook(() => {
     },
   });
 
-  // Remove item from cart mutation
+  // Remove from cart mutation
   const removeFromCartMutation = useMutation({
     mutationFn: async (menuItemId: string) => {
       if (!userId) throw new Error("User not authenticated");
@@ -229,63 +225,77 @@ export const [CartProvider, useCart] = createContextHook(() => {
     },
   });
 
-  // Place order mutation
+  // Place orders mutation (handles multiple restaurants)
   const placeOrderMutation = useMutation({
     mutationFn: async () => {
       if (!userId) throw new Error("User not authenticated");
-      if (cart.length === 0) return null;
+      if (cart.length === 0) return [];
 
-      const { restaurantId, restaurantName } = cart[0];
-      const total = cart.reduce(
-        (sum, item) => sum + item.menuItem.price * item.quantity,
-        0
-      );
+      // Group cart items by restaurantId
+      const groupedItems = cart.reduce((groups, item) => {
+        if (!groups[item.restaurantId]) groups[item.restaurantId] = [];
+        groups[item.restaurantId].push(item);
+        return groups;
+      }, {} as Record<string, CartItem[]>);
 
-      // Create order
-      const { data: order, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-          user_id: userId,
-          restaurant_id: restaurantId,
-          restaurant_name: restaurantName,
+      const createdOrders: Order[] = [];
+
+      for (const restaurantId in groupedItems) {
+        const itemsForRestaurant = groupedItems[restaurantId];
+        const restaurantName = itemsForRestaurant[0].restaurantName;
+        const total = itemsForRestaurant.reduce(
+          (sum, item) => sum + item.menuItem.price * item.quantity,
+          0
+        );
+
+        // Insert order
+        const { data: order, error: orderError } = await supabase
+          .from("orders")
+          .insert({
+            user_id: userId,
+            restaurant_id: restaurantId,
+            restaurant_name: restaurantName,
+            status: "confirmed",
+            total,
+            delivery_fee: 2.99,
+            estimated_delivery_time: "30-45 min",
+          })
+          .select()
+          .single();
+
+        if (orderError) throw orderError;
+
+        // Insert order items
+        const orderItems = itemsForRestaurant.map((item) => ({
+          order_id: order.id,
+          menu_item_id: item.menuItem.id,
+          menu_item_name: item.menuItem.name,
+          menu_item_price: item.menuItem.price,
+          quantity: item.quantity,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from("order_items")
+          .insert(orderItems);
+
+        if (itemsError) throw itemsError;
+
+        createdOrders.push({
+          id: order.id,
+          items: itemsForRestaurant,
+          restaurantId,
+          restaurantName,
           status: "confirmed",
           total,
-          delivery_fee: 2.99,
-          estimated_delivery_time: "30-45 min",
-        })
-        .select()
-        .single();
+          date: new Date(order.created_at),
+          estimatedDeliveryTime: order.estimated_delivery_time,
+        });
+      }
 
-      if (orderError) throw orderError;
-
-      // Create order items
-      const orderItems = cart.map((item) => ({
-        order_id: order.id,
-        menu_item_id: item.menuItem.id,
-        menu_item_name: item.menuItem.name,
-        menu_item_price: item.menuItem.price,
-        quantity: item.quantity,
-      }));
-
-      const { error: itemsError } = await supabase
-        .from("order_items")
-        .insert(orderItems);
-
-      if (itemsError) throw itemsError;
-
-      // Clear cart
+      // Clear cart after all orders placed
       await clearCartMutation.mutateAsync();
 
-      return {
-        id: order.id,
-        items: cart,
-        restaurantId,
-        restaurantName,
-        status: "confirmed" as const,
-        total,
-        date: new Date(order.created_at),
-        estimatedDeliveryTime: order.estimated_delivery_time,
-      };
+      return createdOrders;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["orders", userId] });
@@ -293,13 +303,14 @@ export const [CartProvider, useCart] = createContextHook(() => {
     },
   });
 
-  // Update cart when data is loaded
+  // Sync cart state with loaded data
   useEffect(() => {
     if (cartQuery.data) {
       setCart(cartQuery.data);
     }
   }, [cartQuery.data]);
 
+  // Action functions
   const addToCart = (item: CartItem) => {
     if (!userId) return;
     addToCartMutation.mutate(item);
@@ -322,10 +333,10 @@ export const [CartProvider, useCart] = createContextHook(() => {
 
   const placeOrder = () => {
     if (!userId) return Promise.resolve(null);
-    
-    return new Promise<Order | null>((resolve) => {
+
+    return new Promise<Order[] | null>((resolve) => {
       placeOrderMutation.mutate(undefined, {
-        onSuccess: (order) => resolve(order),
+        onSuccess: (orders) => resolve(orders),
         onError: () => resolve(null),
       });
     });

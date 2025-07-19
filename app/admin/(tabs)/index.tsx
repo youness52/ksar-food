@@ -45,7 +45,7 @@ function DashboardContent() {
     <>
       <Stack.Screen
         options={{
-          title: "Admin Dashboard",
+          title: "Dashboard",
           headerStyle: {
             backgroundColor: Colors.light.background,
           },

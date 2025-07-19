@@ -1,8 +1,14 @@
-import { FlatList, StyleSheet, Text, TouchableOpacity, View, Platform } from "react-native";
+import {
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  Platform,
+} from "react-native";
 import React from "react";
-import { useRouter } from "expo-router";
-import { Stack } from "expo-router";
-import { Feather } from "@expo/vector-icons"; // ✅ Replaced lucide-react-native
+import { useRouter, Stack } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import CartItem from "@/components/CartItem";
@@ -12,7 +18,14 @@ import Colors from "@/constants/colors";
 
 function CartContent() {
   const router = useRouter();
-  const { cart, orders, removeFromCart, updateQuantity, getCartTotal, placeOrder } = useCart();
+  const {
+    cart,
+    orders,
+    removeFromCart,
+    updateQuantity,
+    getCartTotal,
+    placeOrder,
+  } = useCart();
 
   const handlePlaceOrder = async () => {
     if (cart.length === 0) return;
@@ -24,14 +37,14 @@ function CartContent() {
     const order = await placeOrder();
 
     if (order) {
-      router.push(`/order/${order.id}`);
+      router.push(`/(tabs)/orders`);
     }
   };
 
   const renderEmptyCart = () => (
     <View style={styles.emptyContainer}>
       <View style={styles.iconContainer}>
-        <Feather name="shopping-bag" size={48} color={Colors.light.gray} /> {/* ✅ Updated icon */}
+        <Feather name="shopping-bag" size={48} color={Colors.light.gray} />
       </View>
       <Text style={styles.emptyTitle}>Your cart is empty</Text>
       <Text style={styles.emptyText}>
@@ -81,20 +94,23 @@ function CartContent() {
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Subtotal</Text>
                 <Text style={styles.summaryValue}>
-                  ${getCartTotal().toFixed(2)}
+                  {"$" + getCartTotal().toFixed(2)}
                 </Text>
               </View>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Delivery Fee</Text>
                 <Text style={styles.summaryValue}>
-                  ${cart[0]?.restaurantId ? "2.99" : "0.00"}
+                  {"$" + (cart[0]?.restaurantId ? "2.99" : "0.00")}
                 </Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.summaryRow}>
                 <Text style={styles.totalLabel}>Total</Text>
                 <Text style={styles.totalValue}>
-                  ${(getCartTotal() + (cart[0]?.restaurantId ? 2.99 : 0)).toFixed(2)}
+                  {"$" +
+                    (getCartTotal() + (cart[0]?.restaurantId ? 2.99 : 0)).toFixed(
+                      2
+                    )}
                 </Text>
               </View>
 

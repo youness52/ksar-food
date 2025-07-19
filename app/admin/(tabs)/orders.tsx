@@ -1,4 +1,15 @@
-import { FlatList, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from "react-native";
+import {
+  FlatList,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ActivityIndicator,
+} from "react-native";
+import { Linking } from "react-native"; // make sure this is at the top
+
 import React, { useState } from "react";
 import { Stack, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -7,14 +18,19 @@ import AdminGuard from "@/components/AdminGuard";
 import Colors from "@/constants/colors";
 import { useAdminOrders } from "@/hooks/admin-store";
 import { Order } from "@/types/restaurant";
+import { supabase } from "@/lib/supabase";
 
 function OrdersContent() {
   const router = useRouter();
   const { orders, isLoading, updateOrderStatus } = useAdminOrders();
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [userInfo, setUserInfo] = useState<{ name: string; email: string;phone: string;address: string} | null>(null);
 
+//console.log(orders)
   const filteredOrders = statusFilter
-    ? orders.filter(order => order.status === statusFilter)
+    ? orders.filter((order) => order.status === statusFilter)
     : orders;
 
   const getStatusIcon = (status: string) => {
@@ -22,7 +38,7 @@ function OrdersContent() {
       case "confirmed":
         return <Feather name="check-circle" size={20} color={Colors.light.success} />;
       case "preparing":
-        return <Feather name="coffee" size={20} color={Colors.light.primary} />; // ChefHat replaced with coffee icon
+        return <Feather name="coffee" size={20} color={Colors.light.primary} />;
       case "on-the-way":
         return <Feather name="truck" size={20} color={Colors.light.primary} />;
       case "delivered":
@@ -51,10 +67,43 @@ function OrdersContent() {
     updateOrderStatus(orderId, newStatus as any);
   };
 
+ const showOrderModal = async (orderId: string) => {
+  const order = orders.find((o) => o.id === orderId) || null;
+  setSelectedOrder(order);
+  setModalVisible(true);
+
+  if (order?.userId) {
+    await fetchUserById(order.userId);
+  }
+};
+
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setSelectedOrder(null);
+  };
+
+  // Fetch user info from Supabase by userId
+  const fetchUserById = async (userId: string) => {
+    const { data, error } = await supabase
+      .from("users")       // Your user table name
+      .select("name, email,phone,address") // Adjust column names accordingly
+      .eq("id", userId)
+      .single();
+
+   
+  if (error) {
+    console.error("Failed to fetch user info:", error);
+    setUserInfo(null);
+  } else {
+    setUserInfo(data);
+  }
+  };
+
   const renderOrder = ({ item }: { item: Order }) => (
     <TouchableOpacity
       style={styles.orderCard}
-      onPress={() => router.push(`/admin/order/${item.id}`)}
+      onPress={() => showOrderModal(item.id)}
       testID={`order-${item.id}`}
     >
       <View style={styles.orderHeader}>
@@ -143,7 +192,9 @@ function OrdersContent() {
             style={[styles.filterChip, statusFilter === null && styles.activeFilterChip]}
             onPress={() => setStatusFilter(null)}
           >
-            <Text style={[styles.filterChipText, statusFilter === null && styles.activeFilterChipText]}>
+            <Text
+              style={[styles.filterChipText, statusFilter === null && styles.activeFilterChipText]}
+            >
               All
             </Text>
           </TouchableOpacity>
@@ -153,7 +204,9 @@ function OrdersContent() {
               style={[styles.filterChip, statusFilter === status && styles.activeFilterChip]}
               onPress={() => setStatusFilter(status)}
             >
-              <Text style={[styles.filterChipText, statusFilter === status && styles.activeFilterChipText]}>
+              <Text
+                style={[styles.filterChipText, statusFilter === status && styles.activeFilterChipText]}
+              >
                 {status.replace("-", " ")}
               </Text>
             </TouchableOpacity>
@@ -173,17 +226,128 @@ function OrdersContent() {
           }
         />
       </View>
+
+      {/* Order Info Modal */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {/* Close icon top right */}
+            <TouchableOpacity
+              style={styles.modalCloseIcon}
+              onPress={closeModal}
+              testID="modal-close-button"
+            >
+              <Feather name="x" size={24} color={Colors.light.gray} />
+            </TouchableOpacity>
+
+            <Text style={styles.modalTitle}>
+              Order #{selectedOrder?.id.split("-")[1]}
+            </Text>
+            <Text style={styles.modalSubtitle}>{selectedOrder?.restaurantName}</Text>
+
+            {/* User info */}
+            {userInfo && (
+              <View style={styles.userInfoContainer}>
+                <Text style={styles.userInfoTitle}>Customer Info</Text>
+                <Text style={styles.userInfoText}>Name: {userInfo.name}</Text>
+                {userInfo.phone && (
+  <TouchableOpacity onPress={() => Linking.openURL(`tel:${userInfo.phone}`)}>
+    <Text style={[styles.userInfoText, ]}>
+      Phone: {userInfo.phone}
+    </Text>
+  </TouchableOpacity>
+)}
+                {userInfo.address && (
+  <TouchableOpacity
+    onPress={() =>
+      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(userInfo.address)}`)
+    }
+  >
+    <Text style={[styles.userInfoText]}>
+      Address: {userInfo.address}
+    </Text>
+  </TouchableOpacity>
+)}
+              </View>
+            )}
+
+            <Text style={styles.modalStatus}>
+              Status:{" "}
+              <Text style={{ color: getStatusColor(selectedOrder?.status || "") }}>
+                {selectedOrder?.status.replace("-", " ")}
+              </Text>
+            </Text>
+            <Text style={styles.modalDate}>
+              Ordered at:{" "}
+              {selectedOrder?.date.toLocaleDateString()}{" "}
+              {selectedOrder?.date.toLocaleTimeString()}
+            </Text>
+
+            <ScrollView style={styles.modalItemsContainer}>
+              {selectedOrder?.items.map(({ menuItem, quantity }, idx) => (
+                <View key={idx} style={styles.modalItem}>
+                  <Text style={styles.modalItemName}>{menuItem.name}</Text>
+                  <Text style={styles.modalItemQuantity}>x{quantity}</Text>
+                  <Text style={styles.modalItemPrice}>
+                    ${(menuItem.price * quantity).toFixed(2)}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+
+            <Text style={styles.modalTotal}>Total: ${selectedOrder?.total.toFixed(2)}</Text>
+
+            {/* Status update buttons inside modal */}
+            {selectedOrder && selectedOrder.status !== "delivered" && (
+              <View style={styles.statusButtons}>
+                {selectedOrder.status === "confirmed" && (
+                  <TouchableOpacity
+                    style={[styles.statusButton, { backgroundColor: Colors.light.primary }]}
+                    onPress={() => {
+                      handleStatusChange(selectedOrder.id, "preparing");
+                      closeModal();
+                    }}
+                  >
+                    <Text style={styles.statusButtonText}>Start Preparing</Text>
+                  </TouchableOpacity>
+                )}
+                {selectedOrder.status === "preparing" && (
+                  <TouchableOpacity
+                    style={[styles.statusButton, { backgroundColor: Colors.light.primary }]}
+                    onPress={() => {
+                      handleStatusChange(selectedOrder.id, "on-the-way");
+                      closeModal();
+                    }}
+                  >
+                    <Text style={styles.statusButtonText}>Out for Delivery</Text>
+                  </TouchableOpacity>
+                )}
+                {selectedOrder.status === "on-the-way" && (
+                  <TouchableOpacity
+                    style={[styles.statusButton, { backgroundColor: Colors.light.success }]}
+                    onPress={() => {
+                      handleStatusChange(selectedOrder.id, "delivered");
+                      closeModal();
+                    }}
+                  >
+                    <Text style={styles.statusButtonText}>Mark Delivered</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
 
-export default function AdminOrders() {
-  return (
-    <AdminGuard>
-      <OrdersContent />
-    </AdminGuard>
-  );
-}
+
 
 const styles = StyleSheet.create({
   container: {
@@ -317,4 +481,95 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.light.gray,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "#000000aa",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  modalContainer: {
+    backgroundColor: Colors.light.card,
+    borderRadius: 12,
+    padding: 24,
+    width: "100%",
+    maxHeight: "80%",
+  },
+  modalCloseIcon: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    zIndex: 10,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 12,
+    color: Colors.light.gray,
+  },
+  userInfoContainer: {
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: Colors.light.lightGray,
+    borderRadius: 8,
+  },
+  userInfoTitle: {
+    fontWeight: "700",
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  userInfoText: {
+    fontSize: 13,
+    color: Colors.light.gray,
+  },
+  modalStatus: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  modalDate: {
+    fontSize: 12,
+    color: Colors.light.gray,
+    marginBottom: 12,
+  },
+  modalItemsContainer: {
+    maxHeight: 200,
+    marginBottom: 12,
+  },
+  modalItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  modalItemName: {
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  modalItemQuantity: {
+    fontSize: 14,
+    color: Colors.light.gray,
+  },
+  modalItemPrice: {
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  modalTotal: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 16,
+    textAlign: "right",
+    color: Colors.light.primary,
+  },
 });
+
+export default function AdminOrders() {
+  return (
+    <AdminGuard>
+      <OrdersContent />
+    </AdminGuard>
+  );
+}

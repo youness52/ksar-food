@@ -25,10 +25,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="search"
+        name="orders"
         options={{
-          title: "Search",
-          tabBarIcon: ({ color }) => <Feather name="search" size={22} color={color} />,
+          title: "My orders",
+          tabBarIcon: ({ color }) => <Feather name="check-circle" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
