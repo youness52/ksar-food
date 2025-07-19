@@ -33,7 +33,8 @@
         {
           "origin": "https://zbair.net/"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
