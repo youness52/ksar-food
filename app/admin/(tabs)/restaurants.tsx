@@ -1,4 +1,14 @@
-import { FlatList, StyleSheet, Text, TouchableOpacity, View, Alert, ActivityIndicator } from "react-native";
+import {
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  Alert,
+  ActivityIndicator,
+  Modal,
+  TextInput,
+} from "react-native";
 import React, { useState } from "react";
 import { Stack, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -7,10 +17,19 @@ import AdminGuard from "@/components/AdminGuard";
 import Colors from "@/constants/colors";
 import { useAdminRestaurants } from "@/hooks/admin-store";
 import { Restaurant } from "@/types/restaurant";
+import { supabase } from "@/lib/supabase"; // Make sure supabase is correctly imported
 
 function RestaurantsContent() {
   const router = useRouter();
   const { restaurants, isLoading, deleteRestaurant } = useAdminRestaurants();
+
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const [name, setName] = useState("");
+  const [rating, setRating] = useState("");
+  const [deliveryTime, setDeliveryTime] = useState("");
+  const [deliveryFee, setDeliveryFee] = useState("");
+  const [categories, setCategories] = useState("");
 
   const handleDeleteRestaurant = (restaurant: Restaurant) => {
     Alert.alert(
@@ -27,46 +46,76 @@ function RestaurantsContent() {
     );
   };
 
+  const handleAddRestaurant = async () => {
+    if (!name || !rating || !deliveryTime || !deliveryFee) {
+      Alert.alert("Please fill all required fields");
+      return;
+    }
+
+    const { error } = await supabase.from("restaurants").insert({
+      name,
+      rating: parseFloat(rating),
+      delivery_time: deliveryTime,
+      delivery_fee: parseFloat(deliveryFee),
+      categories: categories.split(",").map((c) => c.trim()),
+      image:"https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?q=80&w=600&auto=format&fit=crop",
+    });
+
+    if (error) {
+      console.error("Insert error:", error.message);
+      Alert.alert("Error adding restaurant");
+    } else {
+      Alert.alert("Restaurant added!");
+      setModalVisible(false);
+      setName("");
+      setRating("");
+      setDeliveryTime("");
+      setDeliveryFee("");
+      setCategories("");
+      router.push("/admin/(tabs)/restaurants");
+    }
+  };
+
   const renderRestaurant = ({ item }: { item: Restaurant }) => (
-    <View style={styles.restaurantCard}>
-      <View style={styles.restaurantInfo}>
-        <Text style={styles.restaurantName}>{item.name}</Text>
-        <View style={styles.restaurantDetails}>
-          <View style={styles.detailItem}>
-            <Feather name="star" size={14} color={Colors.light.accent} />
-            <Text style={styles.detailText}>{item.rating}</Text>
+    <TouchableOpacity onPress={() => {}} activeOpacity={0.8}>
+      <View style={styles.restaurantCard}>
+        <View style={styles.restaurantInfo}>
+          <Text style={styles.restaurantName}>{item.name}</Text>
+          <View style={styles.restaurantDetails}>
+            <View style={styles.detailItem}>
+              <Feather name="star" size={14} color={Colors.light.accent} />
+              <Text style={styles.detailText}>{item.rating}</Text>
+            </View>
+            <View style={styles.detailItem}>
+              <Feather name="clock" size={14} color={Colors.light.gray} />
+              <Text style={styles.detailText}>{item.deliveryTime}</Text>
+            </View>
+            <Text style={styles.deliveryFee}>${item.deliveryFee.toFixed(2)}</Text>
           </View>
-          <View style={styles.detailItem}>
-            <Feather name="clock" size={14} color={Colors.light.gray} />
-            <Text style={styles.detailText}>{item.deliveryTime}</Text>
+          <View style={styles.categoriesContainer}>
+            {item.categories.map((category, index) => (
+              <Text key={index} style={styles.categoryTag}>
+                {category}
+              </Text>
+            ))}
           </View>
-          <Text style={styles.deliveryFee}>${item.deliveryFee.toFixed(2)}</Text>
         </View>
-        <View style={styles.categoriesContainer}>
-          {item.categories.map((category, index) => (
-            <Text key={index} style={styles.categoryTag}>
-              {category}
-            </Text>
-          ))}
+        <View style={styles.restaurantActions}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => router.push(`/admin/restaurant/${item.id}`)}
+          >
+            <Feather name="edit" size={18} color={Colors.light.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => handleDeleteRestaurant(item)}
+          >
+            <Feather name="trash-2" size={18} color={Colors.light.error} />
+          </TouchableOpacity>
         </View>
       </View>
-      <View style={styles.restaurantActions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => router.push(`/admin/restaurant/${item.id}`)}
-          testID={`edit-restaurant-${item.id}`}
-        >
-          <Feather name="edit" size={18} color={Colors.light.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={() => handleDeleteRestaurant(item)}
-          testID={`delete-restaurant-${item.id}`}
-        >
-          <Feather name="trash-2" size={18} color={Colors.light.error} />
-        </TouchableOpacity>
-      </View>
-    </View>
+    </TouchableOpacity>
   );
 
   if (isLoading) {
@@ -90,15 +139,75 @@ function RestaurantsContent() {
           headerRight: () => (
             <TouchableOpacity
               style={styles.addButton}
-              onPress={() => router.push("/admin/restaurant/new")}
-              testID="add-restaurant-button"
+              onPress={() => setModalVisible(true)}
             >
               <Feather name="plus" size={20} color="#fff" />
             </TouchableOpacity>
           ),
         }}
       />
-      <View style={styles.container} testID="admin-restaurants">
+
+      {/* Add Restaurant Modal */}
+      <Modal
+        animationType="slide"
+        transparent
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Add Restaurant</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Name"
+              value={name}
+              onChangeText={setName}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Rating"
+              keyboardType="numeric"
+              value={rating}
+              onChangeText={setRating}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Delivery Time"
+              value={deliveryTime}
+              onChangeText={setDeliveryTime}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Delivery Fee"
+              keyboardType="numeric"
+              value={deliveryFee}
+              onChangeText={setDeliveryFee}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Categories (comma separated)"
+              value={categories}
+              onChangeText={setCategories}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={handleAddRestaurant}
+              >
+                <Text style={styles.addText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <View style={styles.container}>
         <FlatList
           data={restaurants}
           keyExtractor={(item) => item.id}
@@ -110,7 +219,7 @@ function RestaurantsContent() {
               <Text style={styles.emptyText}>No restaurants found</Text>
               <TouchableOpacity
                 style={styles.addRestaurantButton}
-                onPress={() => router.push("/admin/restaurant/new")}
+                onPress={() => setModalVisible(true)}
               >
                 <Text style={styles.addRestaurantButtonText}>Add First Restaurant</Text>
               </TouchableOpacity>
@@ -140,12 +249,10 @@ const styles = StyleSheet.create({
   },
   addButton: {
     backgroundColor: Colors.light.primary,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginRight:16
   },
   restaurantCard: {
     backgroundColor: Colors.light.card,
@@ -243,5 +350,52 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: Colors.light.gray,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    backgroundColor: "#fff",
+    padding: 20,
+    borderRadius: 16,
+    width: "90%",
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    fontSize: 16,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 10,
+  },
+  cancelButton: {
+    backgroundColor: "#ccc",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  cancelText: {
+    color: "#000",
+    fontWeight: "600",
+  },
+  addText: {
+    color: "#fff",
+    fontWeight: "600",
   },
 });

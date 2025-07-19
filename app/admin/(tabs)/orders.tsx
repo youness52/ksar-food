@@ -26,9 +26,9 @@ function OrdersContent() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [userInfo, setUserInfo] = useState<{ name: string; email: string;phone: string;address: string} | null>(null);
+  const [userInfo, setUserInfo] = useState<{ name: string; email: string; phone: string; address: string } | null>(null);
 
-//console.log(orders)
+  //console.log(orders)
   const filteredOrders = statusFilter
     ? orders.filter((order) => order.status === statusFilter)
     : orders;
@@ -67,15 +67,15 @@ function OrdersContent() {
     updateOrderStatus(orderId, newStatus as any);
   };
 
- const showOrderModal = async (orderId: string) => {
-  const order = orders.find((o) => o.id === orderId) || null;
-  setSelectedOrder(order);
-  setModalVisible(true);
+  const showOrderModal = async (orderId: string) => {
+    const order = orders.find((o) => o.id === orderId) || null;
+    setSelectedOrder(order);
+    setModalVisible(true);
 
-  if (order?.userId) {
-    await fetchUserById(order.userId);
-  }
-};
+    if (order?.userId) {
+      await fetchUserById(order.userId);
+    }
+  };
 
 
   const closeModal = () => {
@@ -91,13 +91,13 @@ function OrdersContent() {
       .eq("id", userId)
       .single();
 
-   
-  if (error) {
-    console.error("Failed to fetch user info:", error);
-    setUserInfo(null);
-  } else {
-    setUserInfo(data);
-  }
+
+    if (error) {
+      console.error("Failed to fetch user info:", error);
+      setUserInfo(null);
+    } else {
+      setUserInfo(data);
+    }
   };
 
   const renderOrder = ({ item }: { item: Order }) => (
@@ -178,7 +178,7 @@ function OrdersContent() {
           headerRight: () => (
             <TouchableOpacity
               style={styles.filterButton}
-              onPress={() => {}}
+              onPress={() => { }}
               testID="filter-orders-button"
             >
               <Feather name="filter" size={20} color={Colors.light.primary} />
@@ -256,23 +256,23 @@ function OrdersContent() {
                 <Text style={styles.userInfoTitle}>Customer Info</Text>
                 <Text style={styles.userInfoText}>Name: {userInfo.name}</Text>
                 {userInfo.phone && (
-  <TouchableOpacity onPress={() => Linking.openURL(`tel:${userInfo.phone}`)}>
-    <Text style={[styles.userInfoText, ]}>
-      Phone: {userInfo.phone}
-    </Text>
-  </TouchableOpacity>
-)}
+                  <TouchableOpacity onPress={() => Linking.openURL(`tel:${userInfo.phone}`)}>
+                    <Text style={[styles.userInfoText,]}>
+                      Phone: {userInfo.phone}
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 {userInfo.address && (
-  <TouchableOpacity
-    onPress={() =>
-      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(userInfo.address)}`)
-    }
-  >
-    <Text style={[styles.userInfoText]}>
-      Address: {userInfo.address}
-    </Text>
-  </TouchableOpacity>
-)}
+                  <TouchableOpacity
+                    onPress={() =>
+                      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(userInfo.address)}`)
+                    }
+                  >
+                    <Text style={[styles.userInfoText]}>
+                      Address: {userInfo.address}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
 
